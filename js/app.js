@@ -1,6 +1,7 @@
 import { store } from './store.js';
 import { extractTasksFromText } from './utils/api.js';
 import { initGlobalErrorBoundary } from './utils/errorBoundary.js';
+import { analyzeWorkload } from './utils/scheduler.js';
 
 initGlobalErrorBoundary();
 
@@ -445,12 +446,17 @@ function renderTasks() {
         <span style="color:${titleColor}">${title}</span>
       </div>`;
     
-    if (showConflict && items.length >= 3) {
-      html += `<div class="conflict-card" style="margin-bottom: 12px;">
-         <span class="conflict-icon">⚡</span>
-         <div>Multiple deadlines detected. Consider starting early to spread the load.</div>
-       </div>`;
+    if (showConflict) {
+      const workloadSuggestions = analyzeWorkload(items);
+      workloadSuggestions.forEach(workload => {
+        html += ` <div class="conflict-card smart-workload-card ${workload.level}">
+        <div class="smart-workload-title"> ⚠ Heavy workload detected on ${workload.date} </div>
+        <div class="smart-workload-score"> Workload Score: ${workload.score} </div>
+        <ul class="smart-suggestion-list"> ${workload.suggestions.map(s => `<li class="${s.includes('Suggested reschedule') ? 'smart-highlight' : ''}"> ${s} </li>`).join('')} </ul>
+        </div>`;
+      });
     }
+    
       
     items.forEach(t => {
       const sub = subjects.find(s => s.id === t.subject_id) || subjects[0];
@@ -556,7 +562,7 @@ function renderTasks() {
       : '';
 
     tasksSection.innerHTML = actionBar +
-                             renderGroup(titlePrefix + '⚠ Due soon', dueSoon, 'var(--color-text-danger)') +
+                             renderGroup(titlePrefix + '⚠ Due soon', dueSoon, 'var(--color-text-danger)', true)
                              renderGroup(titlePrefix + 'This week', thisWeek, 'var(--color-text-secondary)', true) +
                              renderGroup(titlePrefix + 'Completed', completed, 'var(--color-text-tertiary)') +
                              emptyState;

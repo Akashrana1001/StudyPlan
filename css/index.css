@@ -2106,3 +2106,56 @@ body {
     padding: 16px 14px 12px;
   }
 }
+
+
+.smart-workload-card {
+  margin-bottom: 14px;
+  padding: 14px;
+  border-radius: 14px;
+  background: rgba(255, 184, 77, 0.08);
+  border: 1px solid rgba(255, 184, 77, 0.25);
+  backdrop-filter: blur(10px);
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.smart-workload-title {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: #ffcc66;
+}
+
+.smart-workload-score {
+  min-width: 90px;
+  font-size: 12px;
+  margin-bottom: 10px;
+  color: #cfcfcf;
+}
+
+.smart-suggestion-list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.smart-suggestion-list li {
+  margin-bottom: 6px;
+  color: #e6e6e6;
+  line-height: 1.5;
+  font-size: 13px;
+}
+.smart-workload-card.high {
+  border-color: rgba(255, 77, 77, 0.5);
+  background: rgba(255, 77, 77, 0.08);
+}
+
+.smart-workload-card.medium {
+  border-color: rgba(255, 184, 77, 0.25);
+}
+.smart-highlight {
+  color: #ffcc66;
+  font-weight: 600;
+}
