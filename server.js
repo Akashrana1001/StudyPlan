@@ -8,7 +8,8 @@ const csvDownloadRouter = require('./backend/routers/csvDownload.router.js');
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+// 50kb is plenty for any real request; prevents huge payloads before routes run
+app.use(express.json({ limit: '50kb' }));
 
 const page404Path = path.join(__dirname, '404.html');
 const page500Path = path.join(__dirname, 'error.html');
@@ -287,6 +288,11 @@ app.post('/api/tasks', (req, res) => {
       return res.status(400).json({ success: false, message: "No tasks provided" });
     }
 
+    // sanity cap — 50 is generous for any real use case
+    if (tasks.length > 50) {
+      return res.status(400).json({ success: false, message: "Too many tasks. Max 50 per request." });
+    }
+
     let inserted = 0;
     let duplicates = [];
     let errors = [];
@@ -298,6 +304,10 @@ app.post('/api/tasks', (req, res) => {
     let pending = tasks.length;
 
     tasks.forEach(t => {
+      // clamp string fields so a single task can't balloon memory either
+      if (t.title) t.title = String(t.title).trim().slice(0, 200);
+      if (t.notes) t.notes = String(t.notes).trim().slice(0, 2000);
+
       if (!t.title || !t.due_at || !t.subject_id) {
         errors.push({ task: t, error: "Missing title, subject or due date" });
         pending--;
