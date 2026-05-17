@@ -303,6 +303,28 @@ app.post('/api/tasks', (req, res) => {
 
     let pending = tasks.length;
 
+    // single exit point — called after every task path settles (error, duplicate, or write callback)
+    function done() {
+      if (--pending > 0) return;
+      stmt.finalize((finalErr) => {
+        if (finalErr) return res.status(500).json({ success: false, message: "Database error", error: finalErr.message });
+        return res.json({
+          success: true,
+          inserted,
+          duplicates,
+          errors,
+          message:
+            errors.length > 0 && duplicates.length > 0
+              ? "Some tasks failed and some duplicates were skipped"
+              : errors.length > 0
+                ? "Some tasks failed to add"
+                : duplicates.length > 0
+                  ? "Duplicate tasks were skipped"
+                  : "All tasks added successfully"
+        });
+      });
+    }
+
     tasks.forEach(t => {
       // clamp string fields so a single task can't balloon memory either
       if (t.title) t.title = String(t.title).trim().slice(0, 200);
@@ -310,11 +332,7 @@ app.post('/api/tasks', (req, res) => {
 
       if (!t.title || !t.due_at || !t.subject_id) {
         errors.push({ task: t, error: "Missing title, subject or due date" });
-        pending--;
-        if (pending === 0) {
-          stmt.finalize(() => res.status(400).json({ success: false, inserted, duplicates, errors, message: "All tasks invalid" }));
-        }
-        return;
+        return done();
       }
 
       db.get(
@@ -323,53 +341,35 @@ app.post('/api/tasks', (req, res) => {
         (err, existing) => {
           if (err) {
             errors.push({ task: t, error: err.message });
-          } else if (existing) {
-            duplicates.push({
-              title: t.title,
-              due_at: t.due_at,
-              subject_id: t.subject_id
-            });
-          } else {
-            const id = 'task_' + Date.now() + Math.random().toString(36).substr(2, 5);
-            stmt.run(
-              id,
-              t.subject_id,
-              t.title,
-              t.due_at,
-              t.status || 'Not Started',
-              t.priority || 'medium',
-              t.confidence_score || 100,
-              t.notes || '',
-              function (insertErr) {
-                if (insertErr) {
-                  errors.push({ task: t, error: insertErr.message });
-                } else {
-                  inserted++;
-                }
-              }
-            );
+            return done();
           }
 
-          pending--;
-          if (pending === 0) {
-            stmt.finalize((finalErr) => {
-              if (finalErr) return res.status(500).json({ success: false, message: "Database error", error: finalErr.message });
-              return res.json({
-                success: true,
-                inserted,
-                duplicates,
-                errors,
-                message:
-                  errors.length > 0 && duplicates.length > 0
-                    ? "Some tasks failed and some duplicates were skipped"
-                    : errors.length > 0
-                      ? "Some tasks failed to add"
-                      : duplicates.length > 0
-                        ? "Duplicate tasks were skipped"
-                        : "All tasks added successfully"
-              });
-            });
+          if (existing) {
+            duplicates.push({ title: t.title, due_at: t.due_at, subject_id: t.subject_id });
+            return done();
           }
+
+          const id = 'task_' + Date.now() + Math.random().toString(36).substr(2, 5);
+          stmt.run(
+            id,
+            t.subject_id,
+            t.title,
+            t.due_at,
+            t.status || 'Not Started',
+            t.priority || 'medium',
+            t.confidence_score || 100,
+            t.notes || '',
+            function (insertErr) {
+              if (insertErr) {
+                errors.push({ task: t, error: insertErr.message });
+              } else {
+                inserted++;
+              }
+              // pending-- lives here, not after stmt.run() is called —
+              // finalize must not fire until the write callback confirms the row landed
+              done();
+            }
+          );
         }
       );
     });
